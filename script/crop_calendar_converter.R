@@ -44,7 +44,7 @@ shp2raster <- function(shp, mask.raster, label, value, transform = FALSE, proj.f
 ############
 
 #write climate terms to convert
-climateterm<-c("tmp","pre","cld")
+climateterm<-c("tmp","pre")
 
 
 croplist<-c("Barley","Barley.Winter","Cassava","Cotton","Groundnuts","Maize.2",
@@ -56,7 +56,7 @@ croplist<-c("Barley","Barley.Winter","Cassava","Cotton","Groundnuts","Maize.2",
 crop.ordered<-croplist[7] #maize
 print(paste(crop.ordered, "is set"))
 
-yearlist<-1961:2015
+yearlist<-1980:2015
 yearlength<-length(yearlist)
 
 #######
@@ -73,23 +73,23 @@ countrylis<-matrix(numeric(yearlength*250),nrow=yearlength,ncol=250) #first make
 for(i in yearlist){
     #list all countries that have .shp file
     cshp(date=as.Date(paste0(as.character(i),"-1-1")),useGW=FALSE)$COWCODE->
-    countrylis[i-1960,1:length(cshp(date=as.Date(paste0(as.character(i),"-1-1")),
+    countrylis[i-min(yearlist)+1, 1:length(cshp(date=as.Date(paste0(as.character(i),"-1-1")),
     useGW=FALSE)$COWCODE)]
 }
-countrylis<-as.integer(names(table(countrylis)))[-1]
-coutrylength<-length(countrylis)
+countrylis <- as.integer(names(table(countrylis)))[-1]
+countrylength <- length(countrylis)
 
 print("all countries in .shp are listed")
 print(Sys.time())
 
 #set len.yearlist
-climateData<-numeric(120*720*360)
-dim(climateData)<-c(720,360,120) #make vessel of claimte data
+climateData <- numeric(120*720*360)
+dim(climateData) <- c(720,360,120) #make vessel of claimte data
 
 coumaps<- raster(nrow = 360, ncol = 720, xmn = -179.75, xmx = 179.75, ymn = -89.75, ymx = 89.75)
-values(coumaps)<-0
+values(coumaps) <- 0
 
-Ccalendar<-array(numeric(720*360*4),dim=(c(720,360,4)))
+Ccalendar<-array(numeric(720*360*4), dim=(c(720,360,4)))
 
 YdM<-numeric(12)
 
@@ -98,18 +98,18 @@ YdM<-numeric(12)
 ########
 
 cropkc<-open.nc(paste0("../rawdata/Sacks_et_al_2010/",crop.ordered,".crop.calendar.fill.nc"))
-Ccalendar[,,1]<-var.get.nc(cropkc,  "plant.start")
-Ccalendar[,,2]<-var.get.nc(cropkc,  "plant.range")
-Ccalendar[,,3]<-var.get.nc(cropkc,"harvest.start")
-Ccalendar[,,4]<-var.get.nc(cropkc,"harvest.range")
-Ccalendar[,,3]<-Ccalendar[,,3]+(sign(Ccalendar[,,1]-Ccalendar[,,3])==1)*365
+Ccalendar[,,1] <- var.get.nc(cropkc,   "plant.start")
+Ccalendar[,,2] <- var.get.nc(cropkc,   "plant.range")
+Ccalendar[,,3] <- var.get.nc(cropkc, "harvest.start")
+Ccalendar[,,4] <- var.get.nc(cropkc, "harvest.range")
+Ccalendar[,,3] <- Ccalendar[,,3]+(sign(Ccalendar[,,1]-Ccalendar[,,3])==1)*365
 
 
-CCalW<-array(numeric(720*360*12),dim=(c(720,360,12)))
+CCalW <- array(numeric(720*360*12),dim=(c(720,360,12)))
 for (longit in 1:720){
     for (latit in 1:360){
         if(is.na(sum(Ccalendar[longit,latit,1:4])) == FALSE){
-            YdCal<-numeric(1095)
+            YdCal<-numeric(1095) #365*3
 
             for(i in  Ccalendar[longit,latit,1]:(Ccalendar[longit,latit,1]+Ccalendar[longit,latit,2]-1)){
                 YdCal[i]<-(i-Ccalendar[longit,latit,1])/Ccalendar[longit,latit,2]
@@ -142,4 +142,4 @@ for (longit in 1:720){
     if(longit%%120==0)print(paste0("now ",longit%/%120,"/6 has ended"))
 }
 
-save.image(file = paste0("../processed_data/RData/crop_calendar.",crop.ordered,".RData"))
+save.image(file = paste0("../produced_data/RData/crop_calendar.",crop.ordered,".RData"))
