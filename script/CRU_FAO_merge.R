@@ -1,6 +1,8 @@
 require(countrycode)
 require(mgcv)
 
+order2<-"Maize"
+
 croplist <- c("Barley","Barley.Winter","Cassava","Cotton","Groundnuts","Maize.2",
                 "Maize","Millet","Oats","Oats.Winter","Potatoes","Pulses","Rapeseed.Winter",
                     "Rice.2","Rice","Rye.Winter","Sorghum.2","Sorghum","Soybeans","Sugarbeets",
@@ -13,31 +15,26 @@ croplist_for_areacall <- c("barley","barley","cassava","cotton","groundnut","mai
 ##########
 #set up files
 #########
-countrylis <- read.csv("../produced_data/csv/countrylis.csv")
-countrylis <- countrylis$x
+countrylis.csv <- read.csv("../produced_data/csv/countrylis.csv")
 
-tmpall <- read.csv("../produced_data/csv/climateData_/", order2 ,"/_for_tmp.csv")
-preall <- read.csv("../produced_data/csv/climateData_/", order2 ,"/_for_pre.csv")
+tmp <- read.csv(paste0("../produced_data/csv/climateData_", order2 ,"_for_tmp.csv"))
+pre <- read.csv(paste0("../produced_data/csv/climateData_", order2 ,"_for_pre.csv"))
 
-faodata <- read.csv("../rawdata/FAO2014/FAOcrop.csv")
-faodata <- subset(faodata, ItemName == gochumon)
+faodata <- read.csv("../rawdata/FAO_2016/FAOSTAT_data.csv")
+faodata <- faodata[faodata[,"Item"] == order2,]
+faodata <- faodata[,c("Area.Code", "Area", "Element", "Year", "Value")]
 
 ###########
 #merge&reshape
 ###########
-faon <- countrycode(countrylis[tmpall$cown], "cown", "fao")
-tmpall <- cbind(tmpall, faon)
+CD <- merge(tmp, pre, by.x = c("year", "COWN"), by.y = c("year", "COWN"))
+names(CD) <- c("year", "connum", "tmp", "pre")
+CD <- cbind(CD, countrylis.csv[CD[,"connum"],c("cown","faon","country.name")])
 
-CD <- merge(tmpall, preall, by.x = c("year", "cown"), by.y = c("year", "cown"))
-CD <- merge(CD, cldall, by.x = c("year", "cown"), by.y = c("year", "cown"))
+faodata <- reshape(faodata, timevar = "Element", idvar = names(faodata)[!names(faodata)%in%c("Element","Value")],
+                    direction = "wide")
+faodata <- subset(faodata, faodata$Area.Code <5000) #we do not need world sum
 
-CD <- CD[,c("year", "cown", "faon", "tmpall", "preall", "cldall")]
+ClimateFAO <- merge(CD, faodata, by.x = c("year", "faon"), by.y = c("Year","Area.Code"), all=T)
 
-faodata <- reshape(faodata, timevar = "ElementName", idvar = names(faodata)[c(-3,-6)], direction = "wide")
-faodata <- subset(faodata, faodata$AreaCode <5000) #we do not need world sum
-ClimateFAO <- merge(CD, faodata, by.x = c("year", "faon"), by.y = c("Year","AreaCode"), all=T)
-ClimateFAO <- cbind(ClimateFAO, countrycode(countrylis[as.integer(ClimateFAO$cown)], "cown", "country.name"))
-
-CFAO <- ClimateFAO[,-12]
-names(CFAO) <- c(names(CFAO)[-12], "AreaNameFull")
 CRUFAO <- na.omit(CFAO)

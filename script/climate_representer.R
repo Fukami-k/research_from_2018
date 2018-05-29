@@ -93,16 +93,14 @@ for(l in 1:length(climateterm)){
                 }
 
             }else{
-
-            for(i in 1:25){
-                climateGD[(yearc-min(yearlist))*countrylength+connum+i,3] <- NA
+                for(i in 1:25){
+                    climateGD[(yearc-min(yearlist))*countrylength+connum+i,3] <- NA
                 }
-
             }
         }
         print(paste(climateterm[l], as.character(yearc), "done! at", Sys.time()))
     }
 
     write.csv(climateGD, paste0("../produced_data/csv/climateData_", order2 , "_for_", climateterm[l], ".csv"),
-            append = TRUE, quote = FALSE, col.names = FALSE)
+            quote = FALSE, row.names = FALSE)
 }

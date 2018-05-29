@@ -79,6 +79,11 @@ for(i in yearlist){
 countrylis <- as.integer(names(table(countrylis)))[-1]
 countrylength <- length(countrylis)
 
+countrylis.table <- data.frame(connum = 1:length(countrylis),  cown = countrylis,
+                                faon = countrycode(countrylis,"cown", "fao"),
+                                country.name = countrycode(countrylis, "cown", "country.name"))
+write.csv(countrylis.table, "../produced_data/csv/countrylis.csv", row.names = FALSE)
+
 print("all countries in .shp are listed")
 print(Sys.time())
 
