@@ -1,0 +1,313 @@
+require(mgcv)
+
+
+require(countrycode)
+
+CRUFAO[CRUFAO$AreaNameFull==countrycode("USA","iso3c","country.name")&
+           CRUFAO$year>=1980&CRUFAO$year<=2008,c("year","Value.Yield")]->Iran->data88
+CRUFAO[CRUFAO$AreaNameFull=="Canada"&CRUFAO$year>=1980&CRUFAO$year<=2008,c("year","Value.Yield")]->Iran->data88
+Box.test(lm(log(Value.Yield)~year+I(year^2),data=data88)$residuals,lag = 10)
+summary(lm(log(Value.Yield)~year+I(year^2),data=data88))
+plot(data88)
+points(exp(lm(log(Value.Yield)~year+I(year^2),data=Iran)$fitted.values)~data88$year,col=2)
+rm(data88)
+
+###################
+#追試
+#0. データセット整形
+#year, tmp, pre, iso, group, Value.Yield, Predict
+###################
+#年代による選別
+CRUFAO.8008<-CRUFAO[CRUFAO$year<=2008&CRUFAO$year>=1980,]
+
+#自己回帰係数計算のため、11年未満の国データを削除
+country.8008<-tapply(!is.na(CRUFAO.8008$Value.Yield),CRUFAO.8008$AreaNameFull,sum)
+countryname.8008<-names(country.8008)[country.8008>=11&!is.na(country.8008)]
+
+#10^4 ha threshold line #country which is not exceed 10^4ha is removed
+country.area.8008<-tapply(CRUFAO.8008$`Value.Area harvested`,CRUFAO.8008$AreaNameFull,max)
+countryname.area.8008<-names(country.area.8008[country.area.8008>=10^4&!is.na(country.area.8008)])
+countryname.8008<-intersect(countryname.8008,countryname.area.8008)
+
+#連続して同じ値を出したのがいくつあったか
+check.seqdata<-function(country.name,data=CRUFAO.8008){
+    sample.data<-data[data$AreaNameFull==country.name,]
+    if(nrow(sample.data)==0)return(NA)
+    seq.counter<-0
+    for(i in 1:nrow(sample.data)){
+        year.remark<-sample.data[i,"year"]
+        if((year.remark-1)%in%sample.data$year){
+            if(sample.data[sample.data$year==year.remark,"Value.Yield"]==
+                sample.data[sample.data$year==(year.remark-1),"Value.Yield"]){
+                    seq.counter<-seq.counter+1
+            }
+        }
+    }
+    return(seq.counter)
+}
+#2つ以下をのこすように選別
+country.seq.8008<-sapply(names(table(CRUFAO.8008$AreaNameFull)),check.seqdata)
+countryname.seq.8008<-names(country.seq.8008[country.seq.8008<=2])
+countryname.8008<-intersect(countryname.8008,countryname.seq.8008)
+
+#元データへの反映
+countryiso.8008<-countrycode(countryname.8008,"country.name","iso3c")
+CRUFAO2.8008<-CRUFAO.8008[CRUFAO.8008$AreaNameFull%in%countryname.8008,] #this was CRUFAO.8008[CRUFAO$AreaNameFull%in%countryname.8008,] till 180123
+CRUFAO2.8008<-data.frame(CRUFAO2.8008,iso3c=countrycode(CRUFAO2.8008$AreaNameFull,"country.name","iso3c"))
+CRUFAO2.8008<-CRUFAO2.8008[!is.na(CRUFAO2.8008$Value.Yield),]
+
+#############
+#data selection by self regression
+#自己回帰係数によるデータ選別
+#############
+#check self regression #parabora 10
+Box.p<-function(iso3c,data=CRUFAO2.8008){
+    data<-data[data$iso3c==iso3c,]
+    lm.model0<-lm(log(Value.Yield)~year+I(year^2),data = data)
+    return(Box.test(lm.model0$residuals,lag=10)$p.value)
+}
+country.p<-sapply(countryiso.8008,Box.p)
+country.p2<-names(country.p[country.p>=0.05])
+
+#check self regression #linear
+Box.pl<-function(iso3c,data=CRUFAO2.8008){
+    data<-data[data$iso3c==iso3c,]
+    lm.model0<-lm(log(Value.Yield)~year,data = data)
+    return(Box.test(lm.model0$residuals,lag=10)$p.value)
+}
+country.pl<-sapply(countryiso.8008,Box.pl)
+country.p2l<-names(country.p[country.p>=0.05])
+#plot self regression
+plot(log10(data.frame(country.p,country.pl)),type="n");text(log10(data.frame(country.p,country.pl)),countryiso.8008)
+abline(h=log10(0.05),col=2)
+abline(v=log10(0.05),col=2)
+
+#check self regression #parabora 1
+Box.p.1<-function(iso3c,data=CRUFAO2.8008){
+    data<-data[data$iso3c==iso3c,]
+    lm.model0<-lm(log(Value.Yield)~year+I(year^2),data = data)
+    return(Box.test(lm.model0$residuals,lag=1)$p.value)
+}
+country.p.1<-sapply(countryiso.8008,Box.p.1)
+country.p2.1<-names(country.p[country.p>=0.05])
+plot(log10(data.frame(country.p,country.p.1)),type="n");text(log10(data.frame(country.p,country.p.1)),countryiso.8008)
+abline(h=log10(0.05),col=2)
+abline(v=log10(0.05),col=2)
+
+#check self regression #parabora 5
+Box.p.5<-function(iso3c,data=CRUFAO2.8008){
+    data<-data[data$iso3c==iso3c,]
+    lm.model0<-lm(log(Value.Yield)~year+I(year^2),data = data)
+    return(Box.test(lm.model0$residuals,lag=5)$p.value)
+}
+country.p.5<-sapply(countryiso.8008,Box.p.5)
+country.p2.5<-names(country.p[country.p>=0.05])
+plot(log10(data.frame(country.p,country.p.5)),type="n");text(log10(data.frame(country.p,country.p.5)),countryiso.8008)
+abline(h=log10(0.05),col=2)
+abline(v=log10(0.05),col=2)
+
+
+CRUFAO3.8008<-CRUFAO2.8008[CRUFAO2.8008$iso3c%in%country.p2,]
+
+#grouping by yield
+mean.yield<-tapply(CRUFAO3.8008$Value.Yield,CRUFAO3.8008$iso3c,mean)
+class.yield<-rep(LETTERS[1:4],each=24)[c(-95,-96)]
+names(class.yield)<-names(sort(mean.yield))
+CRUFAO3.8008<-data.frame(CRUFAO3.8008,group=class.yield[as.character(CRUFAO3.8008$iso3c)])
+
+##################
+#1. 線形モデル作成
+###################
+lm.model1<-lm(log(Value.Yield)~iso3c+iso3c:year+iso3c:I(year^2)+
+                  group:tmp+group:I(tmp^2)+
+                  group:pre+group:I(pre^2),
+              data=CRUFAO3.8008,na.action = na.omit)
+
+lm.model2<-lm(log(Value.Yield)~iso3c+iso3c:year+iso3c:I(year^2)+
+                  tmp+I(tmp^2)+
+                  pre+I(pre^2),
+              data=CRUFAO3.8008,na.action = na.omit)
+
+#################
+#2.Predict 併合
+#################
+CRUFAO3.8008.p<-data.frame(CRUFAO3.8008,predict=exp(lm.model1$fitted.values))
+
+#################
+#3.matplot, layout 作成
+##################
+
+pdf("Tsuishi01_180417.pdf")
+#parameter
+layout.rat<-matrix(c(3,1,1),nrow = 3)
+par(mar=c(1.5,2,1,0.5))
+
+for(i in 1:length(country.p2)){
+    country<-country.p2[i]
+    data<-CRUFAO3.8008.p[CRUFAO3.8008.p$iso3c==country,]
+
+    #predict2
+    eff.country0<-lm.model1$coefficients[paste0("iso3c",country)]+lm.model1$coefficients["(Intercept)"]
+    eff.country1<-lm.model1$coefficients[paste0("iso3c",country,":year")]
+    eff.country2<-lm.model1$coefficients[paste0("iso3c",country,":I(year^2)")]
+    eff.cliT1<-lm.model1$coefficients[paste0("group",data$group[1],":tmp")]
+    eff.cliT2<-lm.model1$coefficients[paste0("group",data$group[1],":I(tmp^2)")]
+    eff.cliP1<-lm.model1$coefficients[paste0("group",data$group[1],":pre")]
+    eff.cliP2<-lm.model1$coefficients[paste0("group",data$group[1],":I(pre^2)")]
+
+    if(i==1)eff.country0<-lm.model1$coefficients["(Intercept)"]
+    print(c(eff.country0,eff.country1,eff.country2,eff.cliT1,eff.cliT2,eff.cliP1,eff.cliP2))
+
+    predict2<-eff.country0+eff.country1*(min(data$year):max(data$year))+eff.country2*(min(data$year):max(data$year))^2+
+        eff.cliT1*median(data$tmp)+eff.cliT2*median(data$tmp)^2+eff.cliP1*median(data$pre)+eff.cliP2*median(data$pre)^2
+
+    layout(1:3,height=layout.rat)
+    #first layer
+    matplot(data$year,cbind(data$predict,data$Value.Yield),col=c(2,1),
+            type=c("b","p"),pch=c(1,2),main=paste(countrycode(country,"iso3c","country.name"),"group",data$group[1]))
+    points((min(data$year):max(data$year)),exp(predict2),col=5,type="b",pch=3)
+    #legend()
+    text(par("usr")[2]*0.9+par("usr")[1]*0.1,par("usr")[3]*0.9+par("usr")[4]*0.1,
+         paste("Box.test's p.value is",round(Box.test(data$Value.Yield-data$predict,lag=10)$p.value,3)))
+
+    text(par("usr")[2]*0.8+par("usr")[1]*0.2,par("usr")[3]*0.8+par("usr")[4]*0.2,
+         paste("Value.Area.harvested is mean",signif(mean(data$Value.Area.harvest),3)))
+
+    #second layer
+    plot(data$tmp~data$year, type = "b", col=3)
+
+    #3rd layer
+    plot(data$pre~data$year, type="b", col=4)
+
+    rm(data)
+}
+
+dev.off()
+
+###############
+#lobell fig4
+###############
+CRUFAO3.8008.p$iso3c
+name.country<-names(mean.yield)[!is.na(mean.yield)]
+
+trend.ax<-function(x)lm(x~I(1:length(x)))$coefficients[2]
+trend.b<-function(x)lm(x~I(1:length(x)))$coefficients[2]+lm(x~I(1:length(x)))$coefficients[1]
+
+ToTrace<-data.frame(iso3c=name.country,
+group=class.yield[name.country],
+year.1=lm.model1$coefficients[sapply(name.country,function(x)paste0("iso3c",x,":year"))],
+year.2=lm.model1$coefficients[sapply(name.country,function(x)paste0("iso3c",x,":I(year^2)"))],
+tmp.1=lm.model1$coefficients[sapply(class.yield[name.country],function(x)paste0("group",x,":tmp"))],
+tmp.2=lm.model1$coefficients[sapply(class.yield[name.country],function(x)paste0("group",x,":I(tmp^2)"))],
+pre.1=lm.model1$coefficients[sapply(class.yield[name.country],function(x)paste0("group",x,":pre"))],
+pre.2=lm.model1$coefficients[sapply(class.yield[name.country],function(x)paste0("group",x,":I(pre^2)"))],
+trend.tmp.ax=tapply(CRUFAO3.8008$tmp,CRUFAO3.8008$iso3c,trend.ax)[name.country],
+trend.tmp.b=tapply(CRUFAO3.8008$tmp,CRUFAO3.8008$iso3c,trend.b)[name.country],
+trend.pre.ax=tapply(CRUFAO3.8008$pre,CRUFAO3.8008$iso3c,trend.ax)[name.country],
+trend.pre.b=tapply(CRUFAO3.8008$pre,CRUFAO3.8008$iso3c,trend.b)[name.country])
+D.year<-ToTrace$year.1*(2008-1981)+ToTrace$year.2*(2008^2-1981^2)
+D.tmp<-ToTrace$tmp.1*(2008-1981)*ToTrace$trend.tmp.ax+
+    ToTrace$tmp.2*((ToTrace$trend.tmp.b+(2008-1981)*ToTrace$trend.tmp.ax)^2-(ToTrace$trend.tmp.b^2))
+D.pre<-ToTrace$pre.1*(2008-1981)*ToTrace$trend.pre.ax+
+    ToTrace$pre.2*((ToTrace$trend.pre.b+(2008-1981)*ToTrace$trend.pre.ax)^2-(ToTrace$trend.pre.b^2))
+
+
+plot(CRUFAO3.8008.p[CRUFAO3.8008.p$iso3c=="TKM","Value.Yield"],type="b")
+countrycode("TKM","iso3c","country.name")
+points(CRUFAO3.8008.p[CRUFAO3.8008.p$iso3c=="TKM","predict"],col=2)
+
+ToTrace$DtDy<-(exp(D.tmp)-1)/(exp(D.year)-1)
+ToTrace$DpDy<-(exp(D.pre)-1)/(exp(D.year)-1)
+ToTrace$Dyt<-(exp(D.tmp+D.pre)-1)/(exp(D.year)-1)
+
+ToTrace$Dyt[abs(ToTrace$Dyt)>5]<-NA #下に凸の国って..
+Dyt2<-ToTrace$Dyt
+names(Dyt2)<-ToTrace$iso3c
+
+world <- map_data("world")
+world$Dyt2<-sapply(world$region,function(x)Dyt2[ifelse(x%in%c("China","UK"),c("CHN","GBR")[(x=="UK")+1],iso3166[x==iso3166$mapname,"a3"])])
+world_base <- ggplot(data = world, mapping = aes(x = long, y = lat, group = group)) + geom_polygon(color = "gray", fill = "black")
+
+pdf("180417fig6L2.pdf",width=18.0/2.54,height = 9.0/2.54, pointsize=10) #make theme(text=element(size=10))
+world_base +
+    geom_polygon(data = world, aes(fill = Dyt2), color = "black",lwd=0.1) +
+    geom_polygon(color = "black", fill = NA, lwd=0.1) +
+    scale_fill_gradientn(colours = c("#FFFFFF",brewer.pal(10, "RdYlBu"),"#00FF00"), breaks = c(-2,seq(-0.5,0.5,by=0.1),2),
+                         values =rescale(c(-2,seq(-0.5,0.5,by=0.1),2), to = c(0, 1), from = range(world$Dyt2, na.rm = TRUE)),
+                         guide = guide_colourbar(title = "[?]",title.position = "bottom")) +
+    coord_fixed(xlim = c(-180, 180),  ylim = c(-75, 75))+
+    scale_x_continuous(name="",breaks=seq(-180,180,by=30),
+                       labels = c("180°W","150°W","120°W","90°W","60°W","30°W","0°","30°E","60°E","90°E","120°E","150°E","180°E"))+
+    scale_y_continuous(name="",breaks=seq(-90,90,by=30),
+                       labels = c("90°S","60°S","30°S","0°","30°N","60°N","90°N"))+
+    theme(line = element_line(size=0.25),
+          text = element_text(size=5),
+          plot.margin = margin(t = 0, r = 0, b = 0, l = 0, unit = "pt"),
+          legend.position = "right",
+          legend.margin = margin(t = 0, r = 0, b = 0, l = 0, unit = "pt"))
+dev.off()
+
+##############
+#気温データをプロットする
+#このアプローチではダメ ('ω'乂) #外周しかかけない。
+#############
+set.year<-1984
+climatefactor<-c("tmp","pre","cld")[1]
+CRUdataversion<-3.24
+
+#load climatedata as variant named "climateData"
+if((set.year-1960)%/%10<5){
+    filename<-paste0("./climateData/cru_ts",CRUdataversion,".",as.character(1+set.year%/%10*10),".",as.character(10+set.year%/%10*10),".",climatefactor,".dat.nc")
+    climateData<-var.get.nc(open.nc(filename),climatefactor)
+    climateData<-climateData[,,(set.year%%10*12-11):(set.year%%10*12)]
+    rm(filename)
+}else{
+    filename<-paste0("./climateData/cru_ts",CRUdataversion,".2011.2015",".",climatefactor,".dat.nc")
+    climateData<-var.get.nc(open.nc(filename),climatefactor)
+    climateData<-climateData[,,(set.year%%10*12-11):(set.year%%10*12)]
+    rm(filename)
+    climateData<-var.get.nc(open.nc(paste0("./climateData/cru_ts3.24.2011.2015.",climateterm[l],".dat.nc")),climateterm[l])
+}
+
+#calurate mean of climateData
+climateData.mean<-apply(climateData,c(1,2),mean)
+
+#Swedish rounding digits=1 and round to even
+Swedish_rounding_e0<-function(x){
+    if(x%%1<=0.25){
+        return(x%/%1)
+    }else if(x%%1>=0.75){
+        return(x%/%1+1)
+    }else{
+        return(x%/%1+0.5)
+    }
+}
+
+Swedish_rounding_e<-function(x)sapply(x,Swedish_rounding_e0)
+
+#make like fig2 in Lobell 2011
+world <- map_data("world")
+tmp.raw.long<-(sapply(world$long,Swedish_rounding_e)+180)*2+1
+tmp.raw.long<-sapply(tmp.raw.long,function(x)ifelse(x>720,x-720,x))
+tmp.raw.lat<-(sapply(world$lat,Swedish_rounding_e)+90)*2+1
+world$tmp.raw<-mapply(function(x,y)climateData.mean[x,y],tmp.raw.long,tmp.raw.lat)
+
+#do not use scale gradientin
+#image関数に似たアプローチを使える。データを切り下げないと書けない。
+world_base <- ggplot(data = world, mapping = aes(x = long, y = lat, group = group)) + geom_polygon(color = "gray", fill = "black")
+world_base +
+    geom_polygon(data = world, aes(fill = tmp.raw), color = "black",lwd=0.1) +
+    geom_polygon(color = "black", fill = NA, lwd=0.1) +
+    scale_fill_gradientn(colours = rev(brewer.pal(11, "RdYlBu")), breaks = seq(-30,30,by=6),
+                         values =rescale(seq(-33,33,by=6), to = c(0, 1), from = range(world$tmp.raw, na.rm = TRUE)),
+                         guide = guide_colourbar(title = "[°C]",title.position = "bottom")) +
+    coord_fixed(xlim = c(-180, 180),  ylim = c(-75, 75))+
+    scale_x_continuous(name="",breaks=seq(-180,180,by=30),
+                       labels = c("180°W","150°W","120°W","90°W","60°W","30°W","0°","30°E","60°E","90°E","120°E","150°E","180°E"))+
+    scale_y_continuous(name="",breaks=seq(-90,90,by=30),
+                       labels = c("90°S","60°S","30°S","0°","30°N","60°N","90°N"))+
+    theme(line = element_line(size=0.25),
+          text = element_text(size=5),
+          plot.margin = margin(t = 0, r = 0, b = 0, l = 0, unit = "pt"),
+          legend.position = "right",
+          legend.margin = margin(t = 0, r = 0, b = 0, l = 0, unit = "pt"))
