@@ -1,16 +1,9 @@
-require(mgcv)
-
-
 require(countrycode)
+require(ggmap)
+require(RColorBrewer)
+require(scales)
 
-CRUFAO[CRUFAO$AreaNameFull==countrycode("USA","iso3c","country.name")&
-           CRUFAO$year>=1980&CRUFAO$year<=2008,c("year","Value.Yield")]->Iran->data88
-CRUFAO[CRUFAO$AreaNameFull=="Canada"&CRUFAO$year>=1980&CRUFAO$year<=2008,c("year","Value.Yield")]->Iran->data88
-Box.test(lm(log(Value.Yield)~year+I(year^2),data=data88)$residuals,lag = 10)
-summary(lm(log(Value.Yield)~year+I(year^2),data=data88))
-plot(data88)
-points(exp(lm(log(Value.Yield)~year+I(year^2),data=Iran)$fitted.values)~data88$year,col=2)
-rm(data88)
+CRUFAO <- read.csv("../produced_data/csv/merged_CRU_FAO.csv")
 
 ###################
 #追試
@@ -18,59 +11,59 @@ rm(data88)
 #year, tmp, pre, iso, group, Value.Yield, Predict
 ###################
 #年代による選別
-CRUFAO.8008<-CRUFAO[CRUFAO$year<=2008&CRUFAO$year>=1980,]
+CRUFAO.8008 <- CRUFAO[CRUFAO$year<=2008 & CRUFAO$year>=1980,]
 
 #自己回帰係数計算のため、11年未満の国データを削除
-country.8008<-tapply(!is.na(CRUFAO.8008$Value.Yield),CRUFAO.8008$AreaNameFull,sum)
-countryname.8008<-names(country.8008)[country.8008>=11&!is.na(country.8008)]
+country.8008 <- tapply(!is.na(CRUFAO.8008$Value.Yield), CRUFAO.8008$country.name, sum)
+countryname.8008 <- names(country.8008)[country.8008>=11 & !is.na(country.8008)]
 
 #10^4 ha threshold line #country which is not exceed 10^4ha is removed
-country.area.8008<-tapply(CRUFAO.8008$`Value.Area harvested`,CRUFAO.8008$AreaNameFull,max)
-countryname.area.8008<-names(country.area.8008[country.area.8008>=10^4&!is.na(country.area.8008)])
-countryname.8008<-intersect(countryname.8008,countryname.area.8008)
+country.area.8008 <- tapply(CRUFAO.8008$Value.Area.harvested, CRUFAO.8008$country.name, max)
+countryname.area.8008 <- names(country.area.8008[country.area.8008>=10^4 & !is.na(country.area.8008)])
+countryname.8008 <- intersect(countryname.8008, countryname.area.8008)
 
 #連続して同じ値を出したのがいくつあったか
-check.seqdata<-function(country.name,data=CRUFAO.8008){
-    sample.data<-data[data$AreaNameFull==country.name,]
-    if(nrow(sample.data)==0)return(NA)
-    seq.counter<-0
+check.seqdata <- function(country.name, data = CRUFAO.8008){
+    sample.data <- data[data$country.name == country.name,]
+    if(nrow(sample.data) == 0) return(NA)
+    seq.counter <- 0
     for(i in 1:nrow(sample.data)){
-        year.remark<-sample.data[i,"year"]
-        if((year.remark-1)%in%sample.data$year){
-            if(sample.data[sample.data$year==year.remark,"Value.Yield"]==
-                sample.data[sample.data$year==(year.remark-1),"Value.Yield"]){
-                    seq.counter<-seq.counter+1
+        year.remark <- sample.data[i, "year"]
+        if((year.remark-1) %in% sample.data$year){
+            if(sample.data[sample.data$year == year.remark, "Value.Yield"] ==
+                sample.data[sample.data$year == (year.remark-1), "Value.Yield"]){
+                    seq.counter <- seq.counter+1
             }
         }
     }
     return(seq.counter)
 }
 #2つ以下をのこすように選別
-country.seq.8008<-sapply(names(table(CRUFAO.8008$AreaNameFull)),check.seqdata)
-countryname.seq.8008<-names(country.seq.8008[country.seq.8008<=2])
-countryname.8008<-intersect(countryname.8008,countryname.seq.8008)
+country.seq.8008 <- sapply(names(table(CRUFAO.8008$country.name)), check.seqdata)
+countryname.seq.8008 <- names(country.seq.8008[country.seq.8008 <= 2])
+countryname.8008 <- intersect(countryname.8008, countryname.seq.8008)
 
 #元データへの反映
-countryiso.8008<-countrycode(countryname.8008,"country.name","iso3c")
-CRUFAO2.8008<-CRUFAO.8008[CRUFAO.8008$AreaNameFull%in%countryname.8008,] #this was CRUFAO.8008[CRUFAO$AreaNameFull%in%countryname.8008,] till 180123
-CRUFAO2.8008<-data.frame(CRUFAO2.8008,iso3c=countrycode(CRUFAO2.8008$AreaNameFull,"country.name","iso3c"))
-CRUFAO2.8008<-CRUFAO2.8008[!is.na(CRUFAO2.8008$Value.Yield),]
+countryiso.8008 <- countrycode(countryname.8008, "country.name", "iso3c")
+CRUFAO2.8008 <- CRUFAO.8008[CRUFAO.8008$country.name %in% countryname.8008,] #this was CRUFAO.8008[CRUFAO$AreaNameFull%in%countryname.8008,] till 180123
+CRUFAO2.8008 <- data.frame(CRUFAO2.8008, iso3c=countrycode(CRUFAO2.8008$country.name, "country.name", "iso3c"))
+CRUFAO2.8008 <- CRUFAO2.8008[!is.na(CRUFAO2.8008$Value.Yield),]
 
 #############
 #data selection by self regression
 #自己回帰係数によるデータ選別
 #############
 #check self regression #parabora 10
-Box.p<-function(iso3c,data=CRUFAO2.8008){
-    data<-data[data$iso3c==iso3c,]
-    lm.model0<-lm(log(Value.Yield)~year+I(year^2),data = data)
-    return(Box.test(lm.model0$residuals,lag=10)$p.value)
+Box.p <- function(iso3c, data = CRUFAO2.8008){
+    data <- data[data$iso3c==iso3c,]
+    lm.model0 <- lm(log(Value.Yield) ~ year + I(year^2), data = data)
+    return(Box.test(lm.model0$residuals, lag = 10)$p.value)
 }
-country.p<-sapply(countryiso.8008,Box.p)
-country.p2<-names(country.p[country.p>=0.05])
+country.p <- sapply(countryiso.8008, Box.p)
+country.p2 <- names(country.p[country.p >= 0.05])
 
 #check self regression #linear
-Box.pl<-function(iso3c,data=CRUFAO2.8008){
+Box.pl <- function(iso3c, data = CRUFAO2.8008){
     data<-data[data$iso3c==iso3c,]
     lm.model0<-lm(log(Value.Yield)~year,data = data)
     return(Box.test(lm.model0$residuals,lag=10)$p.value)
@@ -107,13 +100,18 @@ abline(h=log10(0.05),col=2)
 abline(v=log10(0.05),col=2)
 
 
-CRUFAO3.8008<-CRUFAO2.8008[CRUFAO2.8008$iso3c%in%country.p2,]
+CRUFAO3.8008<-CRUFAO2.8008[CRUFAO2.8008$iso3c %in% country.p2,]
 
 #grouping by yield
 mean.yield<-tapply(CRUFAO3.8008$Value.Yield,CRUFAO3.8008$iso3c,mean)
-class.yield<-rep(LETTERS[1:4],each=24)[c(-95,-96)]
-names(class.yield)<-names(sort(mean.yield))
-CRUFAO3.8008<-data.frame(CRUFAO3.8008,group=class.yield[as.character(CRUFAO3.8008$iso3c)])
+len.mean.yield <- table(is.na(mean.yield))[1]
+
+groupnum <- 4
+class.yield <- rep(LETTERS[1:groupnum],
+                   each = ceiling(len.mean.yield/4))[- (ceiling(len.mean.yield/4)*4 + 4 : (len.mean.yield+1))]
+
+names(class.yield) <- names(sort(mean.yield))
+CRUFAO3.8008 <- data.frame(CRUFAO3.8008, group = class.yield[as.character(CRUFAO3.8008$iso3c)])
 
 ##################
 #1. 線形モデル作成
@@ -246,68 +244,3 @@ world_base +
           legend.position = "right",
           legend.margin = margin(t = 0, r = 0, b = 0, l = 0, unit = "pt"))
 dev.off()
-
-##############
-#気温データをプロットする
-#このアプローチではダメ ('ω'乂) #外周しかかけない。
-#############
-set.year<-1984
-climatefactor<-c("tmp","pre","cld")[1]
-CRUdataversion<-3.24
-
-#load climatedata as variant named "climateData"
-if((set.year-1960)%/%10<5){
-    filename<-paste0("./climateData/cru_ts",CRUdataversion,".",as.character(1+set.year%/%10*10),".",as.character(10+set.year%/%10*10),".",climatefactor,".dat.nc")
-    climateData<-var.get.nc(open.nc(filename),climatefactor)
-    climateData<-climateData[,,(set.year%%10*12-11):(set.year%%10*12)]
-    rm(filename)
-}else{
-    filename<-paste0("./climateData/cru_ts",CRUdataversion,".2011.2015",".",climatefactor,".dat.nc")
-    climateData<-var.get.nc(open.nc(filename),climatefactor)
-    climateData<-climateData[,,(set.year%%10*12-11):(set.year%%10*12)]
-    rm(filename)
-    climateData<-var.get.nc(open.nc(paste0("./climateData/cru_ts3.24.2011.2015.",climateterm[l],".dat.nc")),climateterm[l])
-}
-
-#calurate mean of climateData
-climateData.mean<-apply(climateData,c(1,2),mean)
-
-#Swedish rounding digits=1 and round to even
-Swedish_rounding_e0<-function(x){
-    if(x%%1<=0.25){
-        return(x%/%1)
-    }else if(x%%1>=0.75){
-        return(x%/%1+1)
-    }else{
-        return(x%/%1+0.5)
-    }
-}
-
-Swedish_rounding_e<-function(x)sapply(x,Swedish_rounding_e0)
-
-#make like fig2 in Lobell 2011
-world <- map_data("world")
-tmp.raw.long<-(sapply(world$long,Swedish_rounding_e)+180)*2+1
-tmp.raw.long<-sapply(tmp.raw.long,function(x)ifelse(x>720,x-720,x))
-tmp.raw.lat<-(sapply(world$lat,Swedish_rounding_e)+90)*2+1
-world$tmp.raw<-mapply(function(x,y)climateData.mean[x,y],tmp.raw.long,tmp.raw.lat)
-
-#do not use scale gradientin
-#image関数に似たアプローチを使える。データを切り下げないと書けない。
-world_base <- ggplot(data = world, mapping = aes(x = long, y = lat, group = group)) + geom_polygon(color = "gray", fill = "black")
-world_base +
-    geom_polygon(data = world, aes(fill = tmp.raw), color = "black",lwd=0.1) +
-    geom_polygon(color = "black", fill = NA, lwd=0.1) +
-    scale_fill_gradientn(colours = rev(brewer.pal(11, "RdYlBu")), breaks = seq(-30,30,by=6),
-                         values =rescale(seq(-33,33,by=6), to = c(0, 1), from = range(world$tmp.raw, na.rm = TRUE)),
-                         guide = guide_colourbar(title = "[°C]",title.position = "bottom")) +
-    coord_fixed(xlim = c(-180, 180),  ylim = c(-75, 75))+
-    scale_x_continuous(name="",breaks=seq(-180,180,by=30),
-                       labels = c("180°W","150°W","120°W","90°W","60°W","30°W","0°","30°E","60°E","90°E","120°E","150°E","180°E"))+
-    scale_y_continuous(name="",breaks=seq(-90,90,by=30),
-                       labels = c("90°S","60°S","30°S","0°","30°N","60°N","90°N"))+
-    theme(line = element_line(size=0.25),
-          text = element_text(size=5),
-          plot.margin = margin(t = 0, r = 0, b = 0, l = 0, unit = "pt"),
-          legend.position = "right",
-          legend.margin = margin(t = 0, r = 0, b = 0, l = 0, unit = "pt"))

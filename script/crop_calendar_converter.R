@@ -3,6 +3,7 @@ require(cshapes)
 require(rgl)
 require(sf)
 require(raster)
+require(countrycode)
 
 source("../rawdata/shp2raster/shp2raster.R")
 
@@ -13,23 +14,41 @@ source("../rawdata/shp2raster/shp2raster.R")
 #write climate terms to convert
 climateterm<-c("tmp","pre")
 
-croplist<-c("Barley","Barley.Winter","Cassava","Cotton","Groundnuts","Maize.2",
+croplist <- c("Barley","Barley.Winter","Cassava","Cotton","Groundnuts","Maize.2",
             "Maize","Millet","Oats","Oats.Winter","Potatoes","Pulses",
             "Rapeseed.Winter","Rice.2","Rice","Rye.Winter","Sorghum.2",
             "Sorghum","Soybeans","Sugarbeets","Sunflower","Sweet.Potatoes",
             "Wheat","Wheat.Winter","Yams")
 
-crop.ordered<-croplist[7] #maize
+crop.ordered<-croplist[20] #sugarbeets
 print(paste(crop.ordered, "is set"))
 
-yearlist<-1980:2015 #year used on calcurate.
-yearlength<-length(yearlist)
-
+#crop calendar data position
 cropkc<-open.nc(paste0("../rawdata/Sacks_et_al_2010/",crop.ordered,".crop.calendar.fill.nc"))
+
+yearlist<-2010:2011 #year used on calcurate.
+
+order2 <- c("barley", "barley", "cassava", "cotton", "grqaoundnut", "maize",
+            "maize", "millet", "oats", "oats", "potato", "pulsenes",
+            "rapeseed", "rice", "rice", "rye", "sorghum",
+            "sorghum", "soybean", "sugarbeet", "sunflower", "sweetpotato",
+            "wheat", "wheat", "yam")[20] #sugarbeets
+
+#crop area data position
+cropareaNC <- open.nc(paste0("../rawdata/Monfreda_et_al_2008/HarvestedAreaYield175Crops_NetCDF/", order2, "_HarvAreaYield2000_NetCDF/",
+                        order2, "_AreaYieldProduction.nc"))
+
+#CRU file pass
+CRUpass <- "../rawdata/CRU_2017/cru_ts"
+
+#CRU file ver
+CRUver <- "3.24"
+
 
 #######
 #initialize conponets
 #####
+yearlength<-length(yearlist)
 
 #give the end of month
 EndOfMonth<-c(0,31,59,90,120,151,181,212,243,273,304,334,365) #Number of days in a standard year on the end of each month
