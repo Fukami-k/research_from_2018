@@ -20,19 +20,19 @@ croplist <- c("Barley","Barley.Winter","Cassava","Cotton","Groundnuts","Maize.2"
             "Sorghum","Soybeans","Sugarbeets","Sunflower","Sweet.Potatoes",
             "Wheat","Wheat.Winter","Yams")
 
-crop.ordered<-croplist[20] #sugarbeets
+crop.ordered<-croplist[7] #sugarbeets　#7 is maize
 print(paste(crop.ordered, "is set"))
 
 #crop calendar data position
 cropkc<-open.nc(paste0("../rawdata/Sacks_et_al_2010/",crop.ordered,".crop.calendar.fill.nc"))
 
-yearlist<-2010:2011 #year used on calcurate.
+yearlist<-1980:1982 #year used on calcurate.
 
 order2 <- c("barley", "barley", "cassava", "cotton", "grqaoundnut", "maize",
             "maize", "millet", "oats", "oats", "potato", "pulsenes",
             "rapeseed", "rice", "rice", "rye", "sorghum",
             "sorghum", "soybean", "sugarbeet", "sunflower", "sweetpotato",
-            "wheat", "wheat", "yam")[20] #sugarbeets
+            "wheat", "wheat", "yam")[7] #sugarbeets
 
 #crop area data position
 cropareaNC <- open.nc(paste0("../rawdata/Monfreda_et_al_2008/HarvestedAreaYield175Crops_NetCDF/", order2, "_HarvAreaYield2000_NetCDF/",
@@ -95,38 +95,42 @@ Ccalendar[,,4] <- var.get.nc(cropkc, "harvest.range")
 Ccalendar[,,3] <- Ccalendar[,,3]+(sign(Ccalendar[,,1]-Ccalendar[,,3])==1)*365
 
 
-CCalW <- array(numeric(720*360*12),dim=(c(720,360,12)))
+CCalW <- array(numeric(720*360*24),dim=(c(720,360,24)))
 for (longit in 1:720){
     for (latit in 1:360){
         if(is.na(sum(Ccalendar[longit,latit,1:4])) == FALSE){
-            YdCal<-numeric(1095) #365*3
+            YdCal<-numeric(730) #365*2
 
             for(i in  Ccalendar[longit,latit,1]:(Ccalendar[longit,latit,1]+Ccalendar[longit,latit,2]-1)){
-                YdCal[i]<-(i-Ccalendar[longit,latit,1])/Ccalendar[longit,latit,2]
+                YdCal[i] <- (i-Ccalendar[longit,latit,1])/Ccalendar[longit,latit,2]
             }
 
-            for(i in (Ccalendar[longit,latit,1]+Ccalendar[longit,latit,2]):1095){
-                YdCal[i]<-1
+            for(i in (Ccalendar[longit,latit,1]+Ccalendar[longit,latit,2]):730){
+                YdCal[i] <- 1
             }
 
-            for(i in (Ccalendar[longit,latit,3]+Ccalendar[longit,latit,4]):1095){
-                YdCal[i]<-0
+            for(i in (Ccalendar[longit,latit,3]+Ccalendar[longit,latit,4]):730){
+                YdCal[i] <- 0
             }
 
             for(i in  Ccalendar[longit,latit,3]:(Ccalendar[longit,latit,3]+Ccalendar[longit,latit,4]-1)){
                 YdCal[i]<-YdCal[i]-(i-Ccalendar[longit,latit,3])/Ccalendar[longit,latit,4]
             }
 
-            YdM<-numeric(12)
+            YdM <- numeric(24)
 
             for(i in 1:12){
-                YdM[i]<-sum(YdCal[     EndOfMonth[i]+1 :     EndOfMonth[i+1] ])+
-                        sum(YdCal[(365+EndOfMonth[i]+1):(365+EndOfMonth[i+1])])+
-                        sum(YdCal[(730+EndOfMonth[i]+1):(730+EndOfMonth[i+1])])
+                YdM[i] <- sum(YdCal[(EndOfMonth[i]+1)     : EndOfMonth[i+1]])
             }
-            CCalW[longit,latit,]<-YdM/sum(YdM)
+
+            for(i in 13:24){
+                YdM[i] <- sum(YdCal[(EndOfMonth[i-12]+366):(EndOfMonth[i-12+1]+365)])
+            }
+
+            CCalW[longit,latit,] <- YdM/sum(YdM)
+
         }else{
-            CCalW[longit,latit,]<-rep(NA,12)
+            CCalW[longit,latit,] <- rep(NA,24)
         }
     }
     if(longit%%120==0)print(paste0("now ",longit%/%120,"/6 has ended"))

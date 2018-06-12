@@ -38,42 +38,49 @@ print(Sys.time())
 for(l in 1:length(climateterm)){
     climateGD <- data.frame(year = rep(yearlist, each = countrylength), connum = rep(1:countrylength, times = yearlength),
                             value = rep(NA, times = countrylength * yearlength))
-    climateData<-rep(NA,720*360*120)
+    climateData.former <- rep(NA,720*360*120)
+    climateData.latter <- rep(NA,720*360*120)
 
-    climateData.nc <- open.nc(paste0(CRUpass, CRUver,".", as.character(1 + min(yearlist-1) %/%10*10),
+    climateData.nc <- open.nc(paste0(CRUpass, CRUver, ".", as.character(1 + min(yearlist-2) %/%10*10),
+            ".", as.character(10 + min(yearlist-2) %/%10*10), ".", climateterm[l], ".dat.nc"))
+    climateData.former <- var.get.nc(climateData.nc, climateterm[l])
+
+    climateData.nc <- open.nc(paste0(CRUpass, CRUver, ".", as.character(1 + min(yearlist-1) %/%10*10),
             ".", as.character(10 + min(yearlist-1) %/%10*10), ".", climateterm[l], ".dat.nc"))
-    climateData <- var.get.nc(climateData.nc, climateterm[l])
+    climateData.latter <- var.get.nc(climateData.nc, climateterm[l])
+
 
     for(yearc in yearlist){
-        if(yearc%%10 == 1){
-            if(yearc%/%10 <= 200){
-                climateData.nc <- open.nc(paste0(CRUpass, CRUver,".", as.character(1+yearc%/%10*10),
-                    ".", as.character(10+yearc%/%10*10), ".", climateterm[l], ".dat.nc"))
-                climateData <- var.get.nc(climateData.nc, climateterm[l])
-            }else{
-                climateData.nc <- open.nc(paste0(CRUpass, CRUver,".2011.2015.", climateterm[l], ".dat.nc"))
-                climateData <- var.get.nc(climateData.nc,climateterm[l])
-            }
-        }
 
         worldmaps <- cshp(date = as.Date(paste0(as.character(yearc),"-1-1")), useGW = FALSE)
+
         for(connum in 1:countrylength){
             values(coumaps) <- 0
 
+            #convert country shape into raster data
             if(length(worldmaps[worldmaps$COWCODE == countrylis[connum],]$"FEATUREID") != 0){
                 coumaps <- shp2raster(worldmaps[worldmaps$COWCODE == countrylis[connum],], coumaps, label="", value = 1, map = FALSE)
             }
 
             CountryExistPoint <- which(coumaps[,]==1)
 
+            #calc representation of a country
             if(length(CountryExistPoint) > 0){
                 CountryCoordinate <- matrix(0, ncol=4, nrow=length(CountryExistPoint))
                 CountryCoordinate[,1] <- (CountryExistPoint-1)%%720+1
                 CountryCoordinate[,2] <- (CountryExistPoint-1)%/%720+1
                 for(i in 1:length(CountryExistPoint)){
-                    CountryCoordinate[i,3] <- CCalW[CountryCoordinate[i,1],CountryCoordinate[i,2],]%*%
-                        climateData[CountryCoordinate[i,1]+(360-CountryCoordinate[i,2])*720+
-                            ((yearc-min(yearlist))%%10*12):((yearc-min(yearlist))%%10*12+11)*720*360]
+                    CountryCoordinate[i,3] <- CCalW[CountryCoordinate[i,1], CountryCoordinate[i,2], (1:12)]%*%
+                        climateData.latter[CountryCoordinate[i,1]+(360-CountryCoordinate[i,2])*720+
+                        ((yearc-min(yearlist))%%10*12):((yearc-min(yearlist))%%10*12+11)*720*360]
+
+                    StrideOverYear <- sum(CCalW[CountryCoordinate[i,1], CountryCoordinate[i,2], (13:24)])
+                    if(!is.na(StrideOverYear) & StrideOverYear>0){
+                        CountryCoordinate[i,3] <- CountryCoordinate[i,3]+
+                            CCalW[CountryCoordinate[i,1], CountryCoordinate[i,2], (13:24)]%*%
+                            climateData.former[CountryCoordinate[i,1]+(360-CountryCoordinate[i,2])*720+
+                            ((yearc-1-min(yearlist))%%10*12):((yearc-1-min(yearlist))%%10*12+11)*720*360]
+                    }
                 }
 
                 for(i in 1:length(CountryExistPoint)){
@@ -93,9 +100,28 @@ for(l in 1:length(climateterm)){
                 for(i in 1:25){
                     climateGD[(yearc-min(yearlist))*countrylength+connum+i,3] <- NA
                 }
+
+
+
             }
         }
         print(paste(climateterm[l], as.character(yearc), "done! at", Sys.time()))
+
+        #renew climate Data
+        climateData.former <- climateData.latter
+
+        #reload climate data
+        if(yearc%%10 == 0){
+            if(yearc%/%10 <= 200){
+                climateData.nc <- open.nc(paste0(CRUpass, CRUver,".", as.character(1+yearc%/%10*10),
+                    ".", as.character(10+yearc%/%10*10), ".", climateterm[l], ".dat.nc"))
+                climateData.latter <- var.get.nc(climateData.nc, climateterm[l])
+            }else{
+                climateData.nc <- open.nc(paste0(CRUpass, CRUver,".2011.2015.", climateterm[l], ".dat.nc"))
+                climateData.latter <- var.get.nc(climateData.nc,climateterm[l])
+            }
+        }
+
     }
 
     iso3c <- countrycode(countrylis[climateGD$connum], "cown", "iso3c")
