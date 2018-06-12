@@ -70,16 +70,20 @@ for(l in 1:length(climateterm)){
                 CountryCoordinate[,1] <- (CountryExistPoint-1)%%720+1
                 CountryCoordinate[,2] <- (CountryExistPoint-1)%/%720+1
                 for(i in 1:length(CountryExistPoint)){
-                    CountryCoordinate[i,3] <- CCalW[CountryCoordinate[i,1], CountryCoordinate[i,2], (1:12)]%*%
-                        climateData.latter[CountryCoordinate[i,1]+(360-CountryCoordinate[i,2])*720+
-                        ((yearc-min(yearlist))%%10*12):((yearc-min(yearlist))%%10*12+11)*720*360]
-
                     StrideOverYear <- sum(CCalW[CountryCoordinate[i,1], CountryCoordinate[i,2], (13:24)])
                     if(!is.na(StrideOverYear) & StrideOverYear>0){
+                        CountryCoordinate[i,3] <- CCalW[CountryCoordinate[i,1], CountryCoordinate[i,2], (13:24)]%*%
+                            climateData.latter[CountryCoordinate[i,1]+(360-CountryCoordinate[i,2])*720+
+                            ((yearc-min(yearlist))%%10*12):((yearc-min(yearlist))%%10*12+11)*720*360]
+
                         CountryCoordinate[i,3] <- CountryCoordinate[i,3]+
-                            CCalW[CountryCoordinate[i,1], CountryCoordinate[i,2], (13:24)]%*%
+                            CCalW[CountryCoordinate[i,1], CountryCoordinate[i,2], (1:12)]%*%
                             climateData.former[CountryCoordinate[i,1]+(360-CountryCoordinate[i,2])*720+
                             ((yearc-1-min(yearlist))%%10*12):((yearc-1-min(yearlist))%%10*12+11)*720*360]
+                    }else{
+                        CountryCoordinate[i,3] <- CCalW[CountryCoordinate[i,1], CountryCoordinate[i,2], (1:12)]%*%
+                            climateData.latter[CountryCoordinate[i,1]+(360-CountryCoordinate[i,2])*720+
+                            ((yearc-min(yearlist))%%10*12):((yearc-min(yearlist))%%10*12+11)*720*360]
                     }
                 }
 
@@ -125,7 +129,6 @@ for(l in 1:length(climateterm)){
     }
 
     iso3c <- countrycode(countrylis[climateGD$connum], "cown", "iso3c")
-    country.name <- countrycode(countrylis[climateGD$connum], "cown", "country.name")
 
     climateGD <- cbind(climateGD, iso3c, country.name)
     rm(iso3c)

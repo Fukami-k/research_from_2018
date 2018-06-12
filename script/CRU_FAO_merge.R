@@ -26,13 +26,9 @@ faodata <- faodata[,c("Area.Code", "Area", "Element", "Year", "Value")]
 ###########
 #merge&reshape
 ###########
-CD <- merge(tmp, pre, by.x = c("year", "COWN"), by.y = c("year", "COWN"))
-names(CD) <- c("year", "connum", "tmp", "pre")
+CD <- merge(tmp, pre, by.x = c("year", "connum","iso3c"), by.y = c("year", "connum","iso3c"))
+names(CD) <- c("year", "connum", "iso3c", "tmp", "pre")
 CD <- cbind(CD, countrylis.csv[CD[,"connum"],c("cown","faon","country.name")])
-
-iso3c <- countrycode(CD$country.name, "country.name", "iso3c")
-CD <- cbind(CD, iso3c)
-rm(iso3c)
 
 faodata <- reshape(faodata, timevar = "Element", idvar = names(faodata)[!names(faodata)%in%c("Element","Value")],
                     direction = "wide")

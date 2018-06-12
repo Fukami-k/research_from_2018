@@ -26,7 +26,7 @@ print(paste(crop.ordered, "is set"))
 #crop calendar data position
 cropkc<-open.nc(paste0("../rawdata/Sacks_et_al_2010/",crop.ordered,".crop.calendar.fill.nc"))
 
-yearlist<-1980:1982 #year used on calcurate.
+yearlist<-1980:2008 #year used on calcurate.
 
 order2 <- c("barley", "barley", "cassava", "cotton", "grqaoundnut", "maize",
             "maize", "millet", "oats", "oats", "potato", "pulsenes",
@@ -137,3 +137,11 @@ for (longit in 1:720){
 }
 
 save.image(file = paste0("../produced_data/RData/crop_calendar.",crop.ordered,".RData"))
+
+################
+#get harvest end day (representitive)
+################
+cult.start <- var.get.nc(cropkc,   "plant")
+cult.end   <- var.get.nc(cropkc,   "harvest")
+
+PH_order <- cult.start < cult.end
