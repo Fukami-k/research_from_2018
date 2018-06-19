@@ -1,7 +1,7 @@
 require(countrycode)
 require(ggmap)
 require(RColorBrewer)
-require(scales)
+require(scales) #扱いに気をつけるべし？
 
 CRUFAO <- read.csv("../produced_data/csv/merged_CRU_FAO.csv")
 
@@ -46,7 +46,7 @@ countryname.8008 <- intersect(countryname.8008, countryname.seq.8008)
 #元データへの反映
 countryiso.8008 <- countrycode(countryname.8008, "country.name", "iso3c")
 CRUFAO2.8008 <- CRUFAO.8008[CRUFAO.8008$country.name %in% countryname.8008,] #this was CRUFAO.8008[CRUFAO$AreaNameFull%in%countryname.8008,] till 180123
-CRUFAO2.8008 <- data.frame(CRUFAO2.8008, iso3c=countrycode(CRUFAO2.8008$country.name, "country.name", "iso3c"))
+CRUFAO2.8008 <- data.frame(CRUFAO2.8008, iso3c = countrycode(CRUFAO2.8008$country.name, "country.name", "iso3c"))
 CRUFAO2.8008 <- CRUFAO2.8008[!is.na(CRUFAO2.8008$Value.Yield),]
 
 #############
@@ -81,7 +81,7 @@ Box.p.1<-function(iso3c,data=CRUFAO2.8008){
     lm.model0<-lm(log(Value.Yield)~year+I(year^2),data = data)
     return(Box.test(lm.model0$residuals,lag=1)$p.value)
 }
-country.p.1<-sapply(countryiso.8008,Box.p.1)
+country.p.1<-sapply(countryiso.8008, Box.p.1)
 country.p2.1<-names(country.p[country.p>=0.05])
 plot(log10(data.frame(country.p,country.p.1)),type="n");text(log10(data.frame(country.p,country.p.1)),countryiso.8008)
 abline(h=log10(0.05),col=2)
@@ -101,6 +101,45 @@ abline(v=log10(0.05),col=2)
 
 
 CRUFAO3.8008<-CRUFAO2.8008[CRUFAO2.8008$iso3c %in% country.p2,]
+
+##############
+#自己相関係数の分析
+#なぜMEXはなくPRKはあるのか
+##############
+pdf("acfp.pdf")
+acf.p <- function(iso3c, data = CRUFAO2.8008){
+    data <- data[data$iso3c==iso3c,]
+    lm.model0 <- lm(log(Value.Yield) ~ year + I(year^2), data = data)
+    return(acf(lm.model0$residuals,plot=TRUE,main=iso3c)$acf[11])
+}
+country.p.acf <- sapply(countryiso.8008, acf.p)
+country.p2.acf <- names(country.p.acf[country.p.acf >= 0.05])
+dev.off()
+
+pdf("acfpl.pdf")
+acf.pl <- function(iso3c, data = CRUFAO2.8008){
+    data <- data[data$iso3c==iso3c,]
+    lm.model0 <- lm(log(Value.Yield) ~ year, data = data)
+    return(acf(lm.model0$residuals,plot=TRUE,main=iso3c)$acf[11])
+}
+country.pl.acf <- sapply(countryiso.8008, acf.pl)
+country.p2l.acf <- names(country.pl.acf[country.pl.acf >= 0.05])
+dev.off()
+
+ite <- 10000
+acf.mat <- matrix(numeric(ite*15),nrow=ite)
+for(i in 1:ite) acf.mat[i,] <- acf(5*rnorm(29),plot=F)$acf
+hist(acf.mat[,11],freq=F)
+sort(acf.mat[,11])[249:251]
+sort(acf.mat[,11])[9749:9751]
+
+ite <- 10000
+acf.mat <- matrix(numeric(ite*15),nrow=ite)
+for(i in 1:ite) acf.mat[i,] <- acf(5*rnorm(29)+c(rep(-0.5,15),rep(0.5,14)),plot=F)$acf
+hist(acf.mat[,11],freq=F)
+sort(acf.mat[,11])[249:251]
+sort(acf.mat[,11])[9749:9751]
+
 
 #grouping by yield
 mean.yield<-tapply(CRUFAO3.8008$Value.Yield,CRUFAO3.8008$iso3c,mean)
@@ -130,6 +169,98 @@ lm.model2<-lm(log(Value.Yield)~iso3c+iso3c:year+iso3c:I(year^2)+
 #2.Predict 併合
 #################
 CRUFAO3.8008.p<-data.frame(CRUFAO3.8008,predict=exp(lm.model1$fitted.values))
+
+
+#what i should do is...... at 180619
+#1. make fun : vec -> lm(vec)$a
+TrendGrad <- function(x){
+    t <- 1:length(x)
+    return(lm(x~t)$coefficients[2])
+}
+
+#2. detrend tmp & pre then bind with CRUFAO
+tmpgradiso <- tapply(CRUFAO3.8008.p$tmp, CRUFAO3.8008.p$iso3c, TrendGrad)
+pregradiso <- tapply(CRUFAO3.8008.p$pre, CRUFAO3.8008.p$iso3c, TrendGrad)
+CRUFAO3.8008.p$tmpd <- CRUFAO3.8008.p$tmp - (CRUFAO3.8008.p$year - 1980) * tmpgradiso[CRUFAO3.8008.p$iso3c]
+CRUFAO3.8008.p$pred <- CRUFAO3.8008.p$pre - (CRUFAO3.8008.p$year - 1980) * pregradiso[CRUFAO3.8008.p$iso3c]
+
+#3. calc ii iii iv
+predict_Td_P  <-  exp(with(CRUFAO3.8008.p, predict(lm.model1, newdata = data.frame(iso3c = iso3c, year =  year, group =group, tmp = tmpd, pre = pre))))
+predict_T_Pd  <-  exp(with(CRUFAO3.8008.p, predict(lm.model1, newdata = data.frame(iso3c = iso3c, year =  year, group =group, tmp = tmp, pre = pred))))
+predict_Td_Pd <-  exp(with(CRUFAO3.8008.p, predict(lm.model1, newdata = data.frame(iso3c = iso3c, year =  year, group =group, tmp = tmpd, pre = pred))))
+
+#4. calc ii-1 iii-1 iv-1
+ii_i  <- predict_Td_P - CRUFAO3.8008.p$predict
+iii_i <- predict_T_Pd - CRUFAO3.8008.p$predict
+iv_i  <- predict_Td_Pd - CRUFAO3.8008.p$predict
+
+#5. calc trend of above with fun
+trendT  <- tapply(ii_i,  CRUFAO3.8008.p$iso3c, TrendGrad)
+trendP  <- tapply(iii_i, CRUFAO3.8008.p$iso3c, TrendGrad)
+trendTP <- tapply(iv_i,  CRUFAO3.8008.p$iso3c, TrendGrad)
+trendY  <- tapply(predict_Td_Pd, CRUFAO3.8008.p$iso3c, TrendGrad)
+trendTPdY <- trendTP / trendY
+
+#6. let them into world map
+colscaleN <- colorRampPalette(c("#EE2020", "#EC5040", "#EA9078", "#E9C0B0", "#E5D0C5"))
+colscaleP <- colorRampPalette(c("#C5D0E8", "#B0C0E0", "#7A87C0", "#4B60A6", "#3355A0"))
+world <- map_data("world")
+world$trendTPdY<-sapply(world$region,function(x)trendTPdY[ifelse(x%in%c("China","UK"),c("CHN","GBR")[(x=="UK")+1],iso3166[x==iso3166$mapname,"a3"])])
+
+Manual_Scale <- function(x){
+    if(is.na(x)){
+        return("NA")
+    }else if(x < -0.5){
+        return("0")
+    }else if(x < -0.4){
+        return("1")
+    }else if(x < -0.3){
+        return("2")
+    }else if(x < -0.2){
+        return("3")
+    }else if(x < -0.1){
+        return("4")
+    }else if(x < 0){
+        return("5")
+    }else if(x < 0.1){
+        return("6")
+    }else if(x < 0.2){
+        return("7")
+    }else if(x < 0.3){
+        return("8")
+    }else if(x < 0.4){
+        return("9")
+    }else if(x < 0.5){
+        return("A")
+    }else{
+        return("B")
+    }
+}
+
+cols <- c("#FF00FF",colscaleN(5),colscaleP(5),"#00FF00","gray")
+names(cols) <- c(0:9,"A","B","NA")
+
+world$trendTPdY_M <- sapply(world$trendTPdY, Manual_Scale)
+
+world_base <- ggplot(data = world, mapping = aes(x = long, y = lat, group = group)) + geom_polygon(color = "gray", fill = "black")
+world_base +
+    geom_polygon(data = world, aes(fill = trendTPdY_M), color = "black",lwd=0.1) +
+    geom_polygon(color = "black", fill = NA, lwd=0.1) +
+#    scale_fill_gradientn(colours = c("#FF00FF",colscaleN(5),colscaleP(5),"#00FF00"), breaks = c(-1,seq(-0.5,0.5,by=0.1),1),
+#                         values =rescale(c(-1,seq(-0.5,0.5,by=0.1),1), to = c(0, 1), from = range(world$trendTPdY, na.rm = TRUE)),
+#                         guide = guide_colourbar(title = "[?]",title.position = "bottom")) +
+    scale_fill_manual(values = cols, guide = guide_legend(title = "[?]",title.position = "bottom"))+
+
+    coord_fixed(xlim = c(-180, 180),  ylim = c(-75, 75))+
+    scale_x_continuous(name="",breaks=seq(-180,180,by=30),
+                       labels = c("180°W","150°W","120°W","90°W","60°W","30°W","0°","30°E","60°E","90°E","120°E","150°E","180°E"))+
+    scale_y_continuous(name="",breaks=seq(-90,90,by=30),
+                       labels = c("90°S","60°S","30°S","0°","30°N","60°N","90°N"))+
+    theme(line = element_line(size=0.25),
+          text = element_text(size=5),
+          plot.margin = margin(t = 0, r = 0, b = 0, l = 0, unit = "pt"),
+          legend.position = "right",
+          legend.margin = margin(t = 0, r = 0, b = 0, l = 0, unit = "pt"))
 
 #################
 #3.matplot, layout 作成

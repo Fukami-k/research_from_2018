@@ -17,15 +17,15 @@ load(paste0("../produced_data/Rdata/crop_calendar.", crop.ordered, ".RData"))
 #################
 #convert Monfreda_et_al_2008 data into 720*360 data
 #################
-cropareaNC.Lv1 <- var.get.nc(cropareaNC, paste0(order2, "Data"))[,,1]
+cropareaNC_detailed <- var.get.nc(cropareaNC, paste0(order2, "Data"))[,,1]
 croparea <- matrix(rep(NA,360*720),nrow=720)
 
 for(i in 1:720){
     for(j in 1:360){
-        cropareaNC.Lv1.r <- cropareaNC.Lv1[(6*i-5):(6*i-5+5),(6*j-5):(6*j-5+5)]
-        croparea[i,j] <- ifelse(sum(!is.na(cropareaNC.Lv1.r)) > 17, sum(cropareaNC.Lv1.r, na.rm = TRUE)/sum(!is.na(cropareaNC.Lv1.r)), NA)
+        cropareaNC_detailed_part <- cropareaNC_detailed[(6*i-5):(6*i-5+5),(6*j-5):(6*j-5+5)]
+        croparea[i,j] <- ifelse(sum(!is.na(cropareaNC_detailed_part)) > 17, sum(cropareaNC_detailed_part, na.rm = TRUE)/sum(!is.na(cropareaNC_detailed_part)), NA)
     }
-    if(i%%72==0) print(paste(i%/%7.2,"% has finished"))
+    if(i%%72==0) print(paste("RUNTIME : compaction of croparea data,", i%/%7.2,"% has finished"))
 }
 
 
@@ -39,6 +39,7 @@ for(l in 1:length(climateterm)){
     climateGD <- data.frame(year = rep(yearlist, each = countrylength), connum = rep(1:countrylength, times = yearlength),
                             value = rep(NA, times = countrylength * yearlength))
     climateData.former <- rep(NA,720*360*120)
+    climateData.midone <- rep(NA,720*360*120)
     climateData.latter <- rep(NA,720*360*120)
 
     climateData.nc <- open.nc(paste0(CRUpass, CRUver, ".", as.character(1 + min(yearlist-2) %/%10*10),
@@ -47,8 +48,11 @@ for(l in 1:length(climateterm)){
 
     climateData.nc <- open.nc(paste0(CRUpass, CRUver, ".", as.character(1 + min(yearlist-1) %/%10*10),
             ".", as.character(10 + min(yearlist-1) %/%10*10), ".", climateterm[l], ".dat.nc"))
-    climateData.latter <- var.get.nc(climateData.nc, climateterm[l])
+    climateData.midone <- var.get.nc(climateData.nc, climateterm[l])
 
+    climateData.nc <- open.nc(paste0(CRUpass, CRUver, ".", as.character(1 + min(yearlist) %/%10*10),
+            ".", as.character(10 + min(yearlist) %/%10*10), ".", climateterm[l], ".dat.nc"))
+    climateData.latter <- var.get.nc(climateData.nc, climateterm[l])
 
     for(yearc in yearlist){
 
@@ -70,10 +74,11 @@ for(l in 1:length(climateterm)){
                 CountryCoordinate[,1] <- (CountryExistPoint-1)%%720+1
                 CountryCoordinate[,2] <- (CountryExistPoint-1)%/%720+1
                 for(i in 1:length(CountryExistPoint)){
-                    StrideOverYear <- sum(CCalW[CountryCoordinate[i,1], CountryCoordinate[i,2], (13:24)])
+                    StrideOverYear <- PH_order[CountryCoordinate[i,1], CountryCoordinate[i,2]]
+
                     if(!is.na(StrideOverYear) & StrideOverYear>0){
                         CountryCoordinate[i,3] <- CCalW[CountryCoordinate[i,1], CountryCoordinate[i,2], (13:24)]%*%
-                            climateData.latter[CountryCoordinate[i,1]+(360-CountryCoordinate[i,2])*720+
+                            climateData.midone[CountryCoordinate[i,1]+(360-CountryCoordinate[i,2])*720+
                             ((yearc-min(yearlist))%%10*12):((yearc-min(yearlist))%%10*12+11)*720*360]
 
                         CountryCoordinate[i,3] <- CountryCoordinate[i,3]+
@@ -81,9 +86,14 @@ for(l in 1:length(climateterm)){
                             climateData.former[CountryCoordinate[i,1]+(360-CountryCoordinate[i,2])*720+
                             ((yearc-1-min(yearlist))%%10*12):((yearc-1-min(yearlist))%%10*12+11)*720*360]
                     }else{
-                        CountryCoordinate[i,3] <- CCalW[CountryCoordinate[i,1], CountryCoordinate[i,2], (1:12)]%*%
+                        CountryCoordinate[i,3] <- CCalW[CountryCoordinate[i,1], CountryCoordinate[i,2], (13:24)]%*%
                             climateData.latter[CountryCoordinate[i,1]+(360-CountryCoordinate[i,2])*720+
                             ((yearc-min(yearlist))%%10*12):((yearc-min(yearlist))%%10*12+11)*720*360]
+
+                        CountryCoordinate[i,3] <- CountryCoordinate[i,3]+
+                            CCalW[CountryCoordinate[i,1], CountryCoordinate[i,2], (1:12)]%*%
+                            climateData.midone[CountryCoordinate[i,1]+(360-CountryCoordinate[i,2])*720+
+                            ((yearc-1-min(yearlist))%%10*12):((yearc-1-min(yearlist))%%10*12+11)*720*360]
                     }
                 }
 
@@ -109,13 +119,14 @@ for(l in 1:length(climateterm)){
 
             }
         }
-        print(paste(climateterm[l], as.character(yearc), "done! at", Sys.time()))
+        print(paste("RUNTIME : make representitives of term:", climateterm[l], as.character(yearc), "done! at", Sys.time()))
 
         #renew climate Data
-        climateData.former <- climateData.latter
+        climateData.midone <- climateData.latter
+        climateData.former <- climateData.midone
 
         #reload climate data
-        if(yearc%%10 == 0){
+        if(yearc%%10 == 9){
             if(yearc%/%10 <= 200){
                 climateData.nc <- open.nc(paste0(CRUpass, CRUver,".", as.character(1+yearc%/%10*10),
                     ".", as.character(10+yearc%/%10*10), ".", climateterm[l], ".dat.nc"))
@@ -130,9 +141,8 @@ for(l in 1:length(climateterm)){
 
     iso3c <- countrycode(countrylis[climateGD$connum], "cown", "iso3c")
 
-    climateGD <- cbind(climateGD, iso3c, country.name)
+    climateGD <- cbind(climateGD, iso3c)
     rm(iso3c)
-    rm(country.name)
 
     write.csv(climateGD, paste0("../produced_data/csv/climateData_", order2 , "_for_", climateterm[l], ".csv"),
             quote = FALSE, row.names = FALSE)

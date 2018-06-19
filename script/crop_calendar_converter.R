@@ -140,6 +140,7 @@ save.image(file = paste0("../produced_data/RData/crop_calendar.",crop.ordered,".
 
 ################
 #get harvest end day (representitive)
+#this is used to solve problem named "Stride Over Year".
 ################
 cult.start <- var.get.nc(cropkc,   "plant")
 cult.end   <- var.get.nc(cropkc,   "harvest")
