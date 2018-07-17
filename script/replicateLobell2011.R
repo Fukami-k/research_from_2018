@@ -38,9 +38,9 @@ check.seqdata <- function(country.name, data = CRUFAO.8008){
     }
     return(seq.counter)
 }
-#2つ以下をのこすように選別
+#連続して同じYieldが無いように選別
 country.seq.8008 <- sapply(names(table(CRUFAO.8008$country.name)), check.seqdata)
-countryname.seq.8008 <- names(country.seq.8008[country.seq.8008 <= 2])
+countryname.seq.8008 <- names(country.seq.8008[country.seq.8008 <= 1])
 countryname.8008 <- intersect(countryname.8008, countryname.seq.8008)
 
 #元データへの反映
@@ -53,92 +53,33 @@ CRUFAO2.8008 <- CRUFAO2.8008[!is.na(CRUFAO2.8008$Value.Yield),]
 #data selection by self regression
 #自己回帰係数によるデータ選別
 #############
-#check self regression #parabora 10
-Box.p <- function(iso3c, data = CRUFAO2.8008){
+acf_test_10 <- function(iso3c, data = CRUFAO2.8008, lag = 10){
     data <- data[data$iso3c==iso3c,]
     lm.model0 <- lm(log(Value.Yield) ~ year + I(year^2), data = data)
-    return(Box.test(lm.model0$residuals, lag = 10)$p.value)
+    x <- lm.model0$residual
+    len.x <- length(x)
+    cor.test(x[1:(len.x -10)],x[11:len.x], method = "pearson")$p.value
 }
-country.p <- sapply(countryiso.8008, Box.p)
-country.p2 <- names(country.p[country.p >= 0.05])
 
-#check self regression #linear
-Box.pl <- function(iso3c, data = CRUFAO2.8008){
-    data<-data[data$iso3c==iso3c,]
-    lm.model0<-lm(log(Value.Yield)~year,data = data)
-    return(Box.test(lm.model0$residuals,lag=10)$p.value)
-}
-country.pl<-sapply(countryiso.8008,Box.pl)
-country.p2l<-names(country.p[country.p>=0.05])
-#plot self regression
-plot(log10(data.frame(country.p,country.pl)),type="n");text(log10(data.frame(country.p,country.pl)),countryiso.8008)
-abline(h=log10(0.05),col=2)
-abline(v=log10(0.05),col=2)
+cor_p <- sapply(countryiso.8008, acf_test_10)
 
-#check self regression #parabora 1
-Box.p.1<-function(iso3c,data=CRUFAO2.8008){
-    data<-data[data$iso3c==iso3c,]
-    lm.model0<-lm(log(Value.Yield)~year+I(year^2),data = data)
-    return(Box.test(lm.model0$residuals,lag=1)$p.value)
-}
-country.p.1<-sapply(countryiso.8008, Box.p.1)
-country.p2.1<-names(country.p[country.p>=0.05])
-plot(log10(data.frame(country.p,country.p.1)),type="n");text(log10(data.frame(country.p,country.p.1)),countryiso.8008)
-abline(h=log10(0.05),col=2)
-abline(v=log10(0.05),col=2)
-
-#check self regression #parabora 5
-Box.p.5<-function(iso3c,data=CRUFAO2.8008){
-    data<-data[data$iso3c==iso3c,]
-    lm.model0<-lm(log(Value.Yield)~year+I(year^2),data = data)
-    return(Box.test(lm.model0$residuals,lag=5)$p.value)
-}
-country.p.5<-sapply(countryiso.8008,Box.p.5)
-country.p2.5<-names(country.p[country.p>=0.05])
-plot(log10(data.frame(country.p,country.p.5)),type="n");text(log10(data.frame(country.p,country.p.5)),countryiso.8008)
-abline(h=log10(0.05),col=2)
-abline(v=log10(0.05),col=2)
-
-
-CRUFAO3.8008<-CRUFAO2.8008[CRUFAO2.8008$iso3c %in% country.p2,]
-
-##############
-#自己相関係数の分析
-#なぜMEXはなくPRKはあるのか
-##############
-pdf("acfp.pdf")
-acf.p <- function(iso3c, data = CRUFAO2.8008){
+acf_test_10l <- function(iso3c, data = CRUFAO2.8008, lag = 10){
     data <- data[data$iso3c==iso3c,]
-    lm.model0 <- lm(log(Value.Yield) ~ year + I(year^2), data = data)
-    return(acf(lm.model0$residuals,plot=TRUE,main=iso3c)$acf[11])
+    lm.model0 <- lm(log(Value.Yield) ~ year , data = data)
+    x <- lm.model0$residual
+    len.x <- length(x)
+    cor.test(x[1:(len.x -10)],x[11:len.x], method = "pearson")$p.value
 }
-country.p.acf <- sapply(countryiso.8008, acf.p)
-country.p2.acf <- names(country.p.acf[country.p.acf >= 0.05])
-dev.off()
 
-pdf("acfpl.pdf")
-acf.pl <- function(iso3c, data = CRUFAO2.8008){
-    data <- data[data$iso3c==iso3c,]
-    lm.model0 <- lm(log(Value.Yield) ~ year, data = data)
-    return(acf(lm.model0$residuals,plot=TRUE,main=iso3c)$acf[11])
-}
-country.pl.acf <- sapply(countryiso.8008, acf.pl)
-country.p2l.acf <- names(country.pl.acf[country.pl.acf >= 0.05])
-dev.off()
+cor_pl <- sapply(countryiso.8008, acf_test_10l)
 
-ite <- 10000
-acf.mat <- matrix(numeric(ite*15),nrow=ite)
-for(i in 1:ite) acf.mat[i,] <- acf(5*rnorm(29),plot=F)$acf
-hist(acf.mat[,11],freq=F)
-sort(acf.mat[,11])[249:251]
-sort(acf.mat[,11])[9749:9751]
+plot(log10(data.frame(cor_p,cor_pl)),type="n");text(log10(data.frame(cor_p,cor_pl)),countryiso.8008)
+abline(h=log10(0.05),col=2)
+abline(v=log10(0.05),col=2)
 
-ite <- 10000
-acf.mat <- matrix(numeric(ite*15),nrow=ite)
-for(i in 1:ite) acf.mat[i,] <- acf(5*rnorm(29)+c(rep(-0.5,15),rep(0.5,14)),plot=F)$acf
-hist(acf.mat[,11],freq=F)
-sort(acf.mat[,11])[249:251]
-sort(acf.mat[,11])[9749:9751]
+country.p2 <- names(cor_pl[cor_pl>0.05])
+CRUFAO3.8008 <- CRUFAO2.8008[CRUFAO2.8008$iso3c %in% country.p2,]
+
 
 
 #grouping by yield
@@ -375,3 +316,101 @@ world_base +
           legend.position = "right",
           legend.margin = margin(t = 0, r = 0, b = 0, l = 0, unit = "pt"))
 dev.off()
+
+#############
+#data selection by self regression
+#自己回帰係数によるデータ選別(旧)
+#############
+#check self regression #parabora 10
+Box.p <- function(iso3c, data = CRUFAO2.8008){
+    data <- data[data$iso3c==iso3c,]
+    lm.model0 <- lm(log(Value.Yield) ~ year + I(year^2), data = data)
+    return(Box.test(lm.model0$residuals, lag = 10)$p.value)
+}
+country.p <- sapply(countryiso.8008, Box.p)
+country.p2 <- names(country.p[country.p >= 0.05])
+
+#check self regression #linear
+Box.pl <- function(iso3c, data = CRUFAO2.8008){
+    data<-data[data$iso3c==iso3c,]
+    lm.model0<-lm(log(Value.Yield)~year,data = data)
+    return(Box.test(lm.model0$residuals,lag=10)$p.value)
+}
+country.pl<-sapply(countryiso.8008,Box.pl)
+country.p2l<-names(country.p[country.p>=0.05])
+#plot self regression
+plot(log10(data.frame(country.p,country.pl)),type="n");text(log10(data.frame(country.p,country.pl)),countryiso.8008)
+abline(h=log10(0.05),col=2)
+abline(v=log10(0.05),col=2)
+
+#check self regression #parabora 1
+Box.p.1<-function(iso3c,data=CRUFAO2.8008){
+    data<-data[data$iso3c==iso3c,]
+    lm.model0<-lm(log(Value.Yield)~year+I(year^2),data = data)
+    return(Box.test(lm.model0$residuals,lag=1)$p.value)
+}
+country.p.1<-sapply(countryiso.8008, Box.p.1)
+country.p2.1<-names(country.p[country.p>=0.05])
+plot(log10(data.frame(country.p,country.p.1)),type="n");text(log10(data.frame(country.p,country.p.1)),countryiso.8008)
+abline(h=log10(0.05),col=2)
+abline(v=log10(0.05),col=2)
+
+#check self regression #parabora 5
+Box.p.5<-function(iso3c,data=CRUFAO2.8008){
+    data<-data[data$iso3c==iso3c,]
+    lm.model0<-lm(log(Value.Yield)~year+I(year^2),data = data)
+    return(Box.test(lm.model0$residuals,lag=5)$p.value)
+}
+country.p.5<-sapply(countryiso.8008,Box.p.5)
+country.p2.5<-names(country.p[country.p>=0.05])
+plot(log10(data.frame(country.p,country.p.5)),type="n");text(log10(data.frame(country.p,country.p.5)),countryiso.8008)
+abline(h=log10(0.05),col=2)
+abline(v=log10(0.05),col=2)
+
+##############
+#自己相関係数の分析
+#なぜMEXはなくPRKはあるのか
+##############
+pdf("acfp.pdf")
+acf.p <- function(iso3c, data = CRUFAO2.8008){
+    data <- data[data$iso3c==iso3c,]
+    lm.model0 <- lm(log(Value.Yield) ~ year + I(year^2), data = data)
+    return(acf(lm.model0$residuals,plot=TRUE,main=iso3c)$acf[11])
+}
+country.p.acf <- sapply(countryiso.8008, acf.p)
+country.p2.acf <- names(country.p.acf[country.p.acf >= 0.05])
+dev.off()
+
+pdf("acfpl.pdf")
+acf.pl <- function(iso3c, data = CRUFAO2.8008){
+    data <- data[data$iso3c==iso3c,]
+    lm.model0 <- lm(Value.Yield ~ year, data = data)
+    return(acf(lm.model0$residuals,plot=TRUE,main=iso3c)$acf[11])
+}
+country.pl.acf <- sapply(countryiso.8008, acf.pl)
+country.p2l.acf <- names(country.pl.acf[country.pl.acf >= 0.05])
+dev.off()
+
+pdf("acfpl_exp.pdf")
+acf.pl_exp <- function(iso3c, data = CRUFAO2.8008){
+    data <- data[data$iso3c==iso3c,]
+    lm.model0 <- lm(Value.Yield ~ year, data = data)
+    return(acf(lm.model0$residuals,plot=TRUE,main=iso3c)$acf[11])
+}
+sapply(countryiso.8008, acf.pl_exp)
+dev.off()
+
+
+ite <- 10000
+acf.mat <- matrix(numeric(ite*15),nrow=ite)
+for(i in 1:ite) acf.mat[i,] <- acf(5*rnorm(29), plot=F)$acf
+hist(acf.mat[,11],freq=F)
+sort(acf.mat[,11])[249:251]
+sort(acf.mat[,11])[9749:9751]
+
+ite <- 10000
+acf.mat <- matrix(numeric(ite*15),nrow=ite)
+for(i in 1:ite) acf.mat[i,] <- acf(5*rnorm(29)+c(rep(-0.5,15),rep(0.5,14)), plot=F)$acf
+hist(acf.mat[,11],freq=F)
+sort(acf.mat[,11])[249:251]
+sort(acf.mat[,11])[9749:9751]
