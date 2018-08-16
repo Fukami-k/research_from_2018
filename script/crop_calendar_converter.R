@@ -26,7 +26,7 @@ print(paste(crop.ordered, "is set"))
 #crop calendar data position
 cropkc<-open.nc(paste0("../rawdata/Sacks_et_al_2010/",crop.ordered,".crop.calendar.fill.nc"))
 
-yearlist<-1980:2008 #year used on calcurate.
+yearlist<-1960:2015 #year used on calcurate.
 
 order2 <- c("barley", "barley", "cassava", "cotton", "grqaoundnut", "maize",
             "maize", "millet", "oats", "oats", "potato", "pulsenes",
@@ -42,7 +42,7 @@ cropareaNC <- open.nc(paste0("../rawdata/Monfreda_et_al_2008/HarvestedAreaYield1
 CRUpass <- "../rawdata/CRU_2017/cru_ts"
 
 #CRU file ver
-CRUver <- "3.24"
+CRUver <- "4.01"
 
 
 #######

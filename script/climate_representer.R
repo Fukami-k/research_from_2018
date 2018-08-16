@@ -132,7 +132,7 @@ for(l in 1:length(climateterm)){
                     ".", as.character(10+yearc%/%10*10), ".", climateterm[l], ".dat.nc"))
                 climateData.latter <- var.get.nc(climateData.nc, climateterm[l])
             }else{
-                climateData.nc <- open.nc(paste0(CRUpass, CRUver,".2011.2015.", climateterm[l], ".dat.nc"))
+                climateData.nc <- open.nc(paste0(CRUpass, CRUver,".2011.2016.", climateterm[l], ".dat.nc"))
                 climateData.latter <- var.get.nc(climateData.nc,climateterm[l])
             }
         }
